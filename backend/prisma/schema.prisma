@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       Rol      @default(OPERADOR)
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  auditorias Auditoria[]
+}
+
+enum Rol {
+  ADMIN
+  OPERADOR
+  CONSULTOR
+}
+
+model Cliente {
+  id            Int      @id @default(autoincrement())
+  nombre        String
+  cedulaRuc     String?  @unique
+  telefono      String?
+  correo        String?
+  direccion     String?
+  tipoCliente   String?  // Persona Natural, Empresa, Institución
+  observaciones String?
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+
+  solicitudes Solicitud[]
+  facturas Factura[]
+}
+
+model Espacio {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  tipo        String?
+  categoria   CategoriaEspacio @default(SALONES)
+  capacidad   Int?
+  ubicacion   String?
+  estado      EstadoEspacio @default(DISPONIBLE)
+  descripcion String?
+  limitePoliza    Decimal? @db.Decimal(12,2)
+  textoPoliza     String?
+  especificaciones String?
+
+  planoArchivo    String?
+  imagenArchivo   String?
+
+  precioMontaje    Decimal @default(0)
+  precioEvento     Decimal @default(0)
+  precioDesmontaje Decimal @default(0)
+  precioCerrado    Decimal @default(0)
+
+  creadoEn    DateTime @default(now())
+
+  solicitudes Solicitud[]
+  reservas    Reserva[]
+}
+
+enum EstadoEspacio {
+  DISPONIBLE
+  MANTENIMIENTO
+  INACTIVO
+}
+
+model Solicitud {
+  id            Int      @id @default(autoincrement())
+  codigo        String   @unique
+
+  clienteId     Int
+  espacioId     Int?
+
+  nombreEvento  String
+  contactoResponsable String?
+  celular       String?
+  correo        String?
+
+  modalidadCosto ModalidadCosto @default(ESTANDAR)
+
+  fechaInicioMontaje DateTime?
+  fechaFinMontaje    DateTime?
+
+  fechaInicioEvento  DateTime?
+  fechaFinEvento     DateTime?
+
+  fechaInicioDesmontaje DateTime?
+  fechaFinDesmontaje    DateTime?
+
+  fechaInicioCerrado DateTime?
+  fechaFinCerrado    DateTime?
+
+  tipoEvento    String?
+  personas      Int?
+  agendadoPor   String?
+
+  actividad     String?
+  descripcion   String?
+  observaciones String?
+
+  costoEstimado Decimal @default(0)
+
+  estado        EstadoSolicitud @default(PENDIENTE)
+  creadoEn      DateTime @default(now())
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  espacio Espacio? @relation(fields: [espacioId], references: [id])
+
+  reserva Reserva?
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  CANCELADA
+}
+
+model Reserva {
+  id          Int      @id @default(autoincrement())
+
+  solicitudId Int      @unique
+  espacioId   Int
+
+  fechaInicio DateTime
+  fechaFin    DateTime
+
+  fechaInicioMontaje DateTime?
+  fechaFinMontaje    DateTime?
+
+  fechaInicioEvento  DateTime?
+  fechaFinEvento     DateTime?
+
+  fechaInicioDesmontaje DateTime?
+  fechaFinDesmontaje    DateTime?
+
+  fechaInicioCerrado DateTime?
+  fechaFinCerrado    DateTime?
+
+  estado      EstadoReserva @default(ACTIVA)
+
+  creadoEn    DateTime @default(now())
+
+  solicitud Solicitud @relation(fields: [solicitudId], references: [id])
+  espacio   Espacio   @relation(fields: [espacioId], references: [id])
+
+  facturas Factura[]
+}
+
+enum EstadoReserva {
+  ACTIVA
+  FINALIZADA
+  CANCELADA
+}
+
+model Factura {
+  id          Int      @id @default(autoincrement())
+  numero      String   @unique
+
+  clienteId   Int?
+  reservaId   Int?
+
+  concepto    String
+  monto       Decimal
+  estado      EstadoFactura @default(PENDIENTE)
+
+  fechaEmision DateTime @default(now())
+  fechaPago    DateTime?
+
+  observaciones String?
+
+  creadoEn    DateTime @default(now())
+
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+  reserva Reserva? @relation(fields: [reservaId], references: [id])
+}
+
+enum EstadoFactura {
+  PENDIENTE
+  PAGADA
+  ANULADA
+}
+
+model Auditoria {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int?
+  accion    String
+  modulo    String
+  detalle   String?
+  fecha     DateTime @default(now())
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+}
+
+model Configuracion {
+  id          Int      @id @default(autoincrement())
+  nombre     String
+  correo     String?
+  telefono   String?
+  direccion  String?
+  moneda     String   @default("USD")
+  logoUrl    String?
+  actualizadoEn DateTime @updatedAt
+}
+
+enum CategoriaEspacio {
+  SALONES
+  TEATROS
+  ESPACIOS_EXTERIORES
+  RECORRIDOS
+  GALERIA
+}
+
+enum ModalidadCosto {
+  ESTANDAR
+  CONVENIO
+  ESCUELA_CDLA
+  GRATUITO
+}
