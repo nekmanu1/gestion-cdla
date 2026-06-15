@@ -13,14 +13,19 @@ import {
     FiActivity,
     FiLogOut,
     FiBookmark,
-    FiPlusCircle
+    FiPlusCircle,
+      FiMenu,
+    FiX
 } from 'react-icons/fi';
+
+import { useState } from 'react';
 
 import NuevaSolicitudModal from './solicitudes/NuevaSolicitudModal';
 
 export default function Layout() {
     const navigate = useNavigate();
     const usuario = JSON.parse(localStorage.getItem('usuario'));
+    const [menuMovil, setMenuMovil] = useState(false);
 
     const [mostrarNuevaSolicitud, setMostrarNuevaSolicitud] = useState(false);
 
@@ -70,8 +75,65 @@ export default function Layout() {
         </button>
     </div>
 </aside>
+{menuMovil && (
+    <div className="fixed inset-0 z-50 md:hidden">
+        <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMenuMovil(false)}
+        />
+
+        <aside className="relative w-72 h-full bg-neutral-950 text-white p-5 flex flex-col">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h2 className="text-2xl font-bold">CDLA</h2>
+                    <p className="text-xs text-gray-400">Gestión de Espacios</p>
+                </div>
+
+                <button
+                    onClick={() => setMenuMovil(false)}
+                    className="text-2xl text-gray-300"
+                >
+                    <FiX />
+                </button>
+            </div>
+
+            <nav className="space-y-2 flex-1 overflow-y-auto">
+                <MenuLink to="/dashboard" label="Dashboard" icon={<FiHome />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/clientes" label="Clientes" icon={<FiUsers />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/espacios" label="Espacios" icon={<FiMapPin />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/solicitudes" label="Solicitudes" icon={<FiClipboard />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/reservas" label="Reservas" icon={<FiBookmark />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/calendario" label="Calendario" icon={<FiCalendar />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/facturas" label="Facturación" icon={<FiDollarSign />} onClick={() => setMenuMovil(false)} />
+                <MenuLink to="/reportes" label="Reportes" icon={<FiFileText />} onClick={() => setMenuMovil(false)} />
+
+                {usuario?.rol === 'ADMIN' && (
+                    <>
+                        <MenuLink to="/usuarios" label="Usuarios" icon={<FiUser />} onClick={() => setMenuMovil(false)} />
+                        <MenuLink to="/configuracion" label="Configuración" icon={<FiSettings />} onClick={() => setMenuMovil(false)} />
+                        <MenuLink to="/auditoria" label="Auditoría" icon={<FiActivity />} onClick={() => setMenuMovil(false)} />
+                    </>
+                )}
+            </nav>
+
+            <button
+                onClick={logout}
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition"
+            >
+                <FiLogOut />
+                Salir
+            </button>
+        </aside>
+    </div>
+)}
                <main className="flex-1 flex flex-col h-screen overflow-hidden">
                 <header className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shrink-0">
+                    <button
+    onClick={() => setMenuMovil(true)}
+    className="md:hidden text-gray-700 text-2xl"
+>
+    <FiMenu />
+</button>
                     <div>
                         <p className="font-semibold text-gray-900">
                             {usuario?.nombre}
@@ -117,10 +179,11 @@ export default function Layout() {
     );
 }
 
-function MenuLink({ to, label, icon }) {
+function MenuLink({ to, label, icon, onClick }) {
     return (
         <Link
             to={to}
+            onClick={onClick}
             className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-300 hover:bg-white/10 hover:text-white transition"
         >
             <span className="text-lg">{icon}</span>
