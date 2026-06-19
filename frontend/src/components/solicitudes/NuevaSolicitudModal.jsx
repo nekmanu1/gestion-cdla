@@ -529,19 +529,19 @@ export default function NuevaSolicitudModal({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                         <CampoFecha
-                            label="Inicio de montaje *"
+                            label="Inicio de montaje "
                             name="fechaInicioMontaje"
                             value={form.fechaInicioMontaje}
                             onChange={cambiar}
-                            required
+                            
                         />
 
                         <CampoFecha
-                            label="Fin de montaje *"
+                            label="Fin de montaje "
                             name="fechaFinMontaje"
                             value={form.fechaFinMontaje}
                             onChange={cambiar}
-                            required
+                            
                         />
 
                         <CampoFecha
@@ -561,19 +561,18 @@ export default function NuevaSolicitudModal({
                         />
 
                         <CampoFecha
-                            label="Inicio de desmontaje *"
+                            label="Inicio de desmontaje "
                             name="fechaInicioDesmontaje"
                             value={form.fechaInicioDesmontaje}
                             onChange={cambiar}
-                            required
+            
                         />
 
                         <CampoFecha
-                            label="Fin de desmontaje *"
+                            label="Fin de desmontaje "
                             name="fechaFinDesmontaje"
                             value={form.fechaFinDesmontaje}
                             onChange={cambiar}
-                            required
                         />
 
                         <CampoFecha

@@ -19,6 +19,12 @@ const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 export default function Calendario() {
     const hoy = new Date();
+
+    const fechaActual = new Date();
+
+const [mesPDF, setMesPDF] = useState(String(fechaActual.getMonth() + 1));
+const [anioPDF, setAnioPDF] = useState(String(fechaActual.getFullYear()));
+
     const usuario = JSON.parse(localStorage.getItem('usuario'));
 
     const [mes, setMes] = useState(hoy.getMonth());
@@ -64,6 +70,32 @@ export default function Calendario() {
     useEffect(() => {
         cargarDatos();
     }, []);
+
+    async function descargarCalendarioPDF() {
+    try {
+        const response = await api.get(
+            `/solicitudes/calendario/descargar-pdf?mes=${mesPDF}&anio=${anioPDF}`,
+            {
+                responseType: 'blob'
+            }
+        );
+
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = `calendario-${mesPDF}-${anioPDF}.pdf`;
+
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        window.URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error(error);
+        toast.error('Error al descargar calendario PDF');
+    }
+}
 
     async function cargarDatos() {
         try {
@@ -290,6 +322,50 @@ export default function Calendario() {
                 title="Calendario"
                 subtitle="Consulta disponibilidad, solicitudes pendientes y reservas aprobadas"
             />
+
+            <Card className="p-4 mb-6">
+    <div className="flex flex-wrap gap-3 items-end">
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mes
+            </label>
+
+            <Select
+                value={mesPDF}
+                onChange={(e) => setMesPDF(e.target.value)}
+            >
+                <option value="1">Enero</option>
+                <option value="2">Febrero</option>
+                <option value="3">Marzo</option>
+                <option value="4">Abril</option>
+                <option value="5">Mayo</option>
+                <option value="6">Junio</option>
+                <option value="7">Julio</option>
+                <option value="8">Agosto</option>
+                <option value="9">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+            </Select>
+        </div>
+
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+                Año
+            </label>
+
+            <Input
+                type="number"
+                value={anioPDF}
+                onChange={(e) => setAnioPDF(e.target.value)}
+            />
+        </div>
+
+        <Button onClick={descargarCalendarioPDF}>
+            Descargar PDF
+        </Button>
+    </div>
+</Card>
 
             <Card className="p-4 mb-6">
                 <div className="flex flex-wrap gap-3 items-center">
@@ -537,3 +613,4 @@ function formatearMonto(valor) {
         maximumFractionDigits: 2
     });
 }
+

@@ -40,6 +40,9 @@ const [costoEstimado, setCostoEstimado] = useState(0);
 
 const usuario = JSON.parse(localStorage.getItem('usuario'));
 
+const puedeEditar =
+    usuario?.rol === 'ADMIN' || usuario?.rol === 'OPERADOR';
+
 const [form, setForm] = useState({
         clienteId: '',
         espacioId: '',
@@ -102,6 +105,18 @@ const [form, setForm] = useState({
             toast.error('Error al cargar solicitudes');
         }
     }
+
+    async function cambiarEstadoSolicitud(id, estado) {
+    try {
+        await api.put(`/solicitudes/${id}/estado`, { estado });
+
+        toast.success('Estado actualizado correctamente');
+        cargarDatos();
+    } catch (error) {
+        console.error(error);
+        toast.error(error.response?.data?.message || 'Error al actualizar estado');
+    }
+}
 
     async function calcularCostoAutomatico() {
         if (!form.espacioId) {
@@ -406,7 +421,21 @@ async function filtrarSolicitudes() {
                             <Td>{solicitud.fechaInicioEvento ? new Date(solicitud.fechaInicioEvento).toLocaleString() : '-'}</Td>
                             <Td>{solicitud.fechaFinEvento ? new Date(solicitud.fechaFinEvento).toLocaleString() : '-'}</Td>
                             <Td className='text-right' >B/. {formatearMonto(solicitud.costoEstimado)}</Td>
-                            <Td><EstadoBadge estado={solicitud.estado} /></Td>
+                            <Td>
+    {puedeEditar ? (
+        <Select
+    value={solicitud.estado}
+    onChange={(e) => cambiarEstadoSolicitud(solicitud.id, e.target.value)}
+    className={`min-w-[140px] font-semibold border-gray-300 ${claseTextoEstado(solicitud.estado)}`}
+>
+    <option value="PENDIENTE">Pendiente</option>
+    <option value="RECHAZADA">Rechazada</option>
+    <option value="CANCELADA">Cancelada</option>
+</Select>
+    ) : (
+        <EstadoBadge estado={solicitud.estado} />
+    )}
+</Td>
                             <Td>
     <div className="flex items-center gap-2">
         <button
@@ -638,3 +667,34 @@ function formatearMonto(valor) {
         maximumFractionDigits: 2
     });
 }
+
+function claseTextoEstado(estado) {
+    const clases = {
+        PENDIENTE: 'text-yellow-600',
+        APROBADA: 'text-green-600',
+        RECHAZADA: 'text-red-600',
+        CANCELADA: 'text-gray-600'
+    };
+
+    return clases[estado] || 'text-gray-600';
+}
+
+
+function formatearFechaCorta(fecha) {
+    if (!fecha) return '-';
+
+    return new Date(fecha).toLocaleDateString('es-PA', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+function textoCorto(texto, maximo = 30) {
+    if (!texto) return '';
+
+    return texto.length > maximo
+        ? texto.substring(0, maximo) + '...'
+        : texto;
+}
+

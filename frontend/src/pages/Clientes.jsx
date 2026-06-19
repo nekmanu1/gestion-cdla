@@ -179,12 +179,12 @@ export default function Clientes() {
                             <Td>
                                 <div className="flex gap-2">
                                     <button
-        title="Editar cliente"
-        onClick={() => editarCliente(cliente)}
-        className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-gray-600 hover:bg-amber-50 transition"
-    >
-        <PencilSquareIcon className="w-5 h-5" />
-    </button>
+    title="Editar cliente"
+    onClick={() => abrirEditarCliente(cliente)}
+    className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-gray-200 text-gray-600 hover:bg-amber-50 transition"
+>
+    <PencilSquareIcon className="w-5 h-5" />
+</button>
 
                                     {cliente.activo && (
                                            <button
