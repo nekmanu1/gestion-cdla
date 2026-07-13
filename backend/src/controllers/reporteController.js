@@ -13,7 +13,7 @@ function formatearMonto(valor) {
     });
 }
 
-function crearDocumentoPDF(res, nombreArchivo, titulo) {
+function crearDocumentoPDF(res, nombreArchivo, titulo, configuracion = null) {
     const doc = new PDFDocument({
     margin: 35,
     size: 'LETTER',
@@ -28,12 +28,11 @@ function crearDocumentoPDF(res, nombreArchivo, titulo) {
 
     doc.pipe(res);
 
-    agregarEncabezado(doc, titulo);
+    agregarEncabezado(doc, titulo, configuracion);
 
     return doc;
 }
-
-function agregarEncabezado(doc, titulo) {
+function agregarEncabezado(doc, titulo, configuracion = null) {
     if (fs.existsSync(logoMincultura)) {
         doc.image(logoMincultura, 40, 45, {
             width: 190
@@ -57,10 +56,23 @@ function agregarEncabezado(doc, titulo) {
     doc.moveDown(0.3);
 
     doc.fontSize(10)
-        .font('Helvetica')
-        .text('Sistema de Gestión de Espacios - Ciudad de las Artes', {
-            align: 'center'
-        });
+    .font('Helvetica')
+    .text(configuracion?.nombre || 'Sistema de Gestión de Espacios - Ciudad de las Artes', {
+        align: 'center'
+    });
+
+if (configuracion?.ruc || configuracion?.telefono || configuracion?.correo) {
+    doc.fontSize(8)
+        .fillColor('#374151')
+        .text(
+            [
+                configuracion?.ruc ? `RUC: ${configuracion.ruc}` : null,
+                configuracion?.telefono ? `Tel: ${configuracion.telefono}` : null,
+                configuracion?.correo ? `Correo: ${configuracion.correo}` : null
+            ].filter(Boolean).join(' | '),
+            { align: 'center' }
+        );
+}
 
     doc.fontSize(9)
         .text(`Fecha de generación: ${new Date().toLocaleString()}`, {
@@ -467,6 +479,9 @@ async function reporteFacturas(req, res) {
 
 async function reporteSolicitudIndividual(req, res) {
     try {
+
+        const configuracion = await prisma.configuracion.findFirst();
+        
         const { id } = req.params;
 
         const s = await prisma.solicitud.findUnique({
@@ -489,10 +504,13 @@ async function reporteSolicitudIndividual(req, res) {
         const doc = crearDocumentoPDF(
             res,
             `solicitud-${s.codigo}.pdf`,
-            'Resumen de Solicitud'
+            'Resumen de Solicitud',
+            configuracion
         );
 
         const factura = s.reserva?.facturas?.[0];
+
+      
 
         dibujarDetalle(doc, [
             ['Código', s.codigo],
@@ -519,6 +537,8 @@ async function reporteSolicitudIndividual(req, res) {
             { etapa: 'Cierre', inicio: formatearFecha(s.fechaInicioCerrado), fin: formatearFecha(s.fechaFinCerrado) }
         ]);
 
+
+
         doc.end();
 
     } catch (error) {
@@ -528,6 +548,7 @@ async function reporteSolicitudIndividual(req, res) {
 }
 
 async function reporteFacturaIndividual(req, res) {
+    const configuracion = await prisma.configuracion.findFirst();
     try {
         const { id } = req.params;
 
@@ -549,10 +570,11 @@ async function reporteFacturaIndividual(req, res) {
         }
 
         const doc = crearDocumentoPDF(
-            res,
-            `factura-${f.numero}.pdf`,
-            'Factura'
-        );
+    res,
+    `factura-${f.numero}.pdf`,
+    'Factura',
+    configuracion
+);
 
         const s = f.reserva?.solicitud;
         const r = f.reserva;
@@ -792,6 +814,37 @@ async function reporteFacturaIndividual(req, res) {
                 startX, y, { width: eventoW, align: 'center' }
             );
 
+
+        if (configuracion?.notaFactura) {
+    doc.moveDown();
+    doc.fontSize(8)
+        .font('Helvetica-Bold')
+        .fillColor('#111827')
+        .text('Nota:', startX, doc.y, { width: eventoW });
+
+    doc.font('Helvetica')
+        .fillColor('#374151')
+        .text(configuracion.notaFactura, {
+            width: eventoW,
+            align: 'left'
+        });
+}
+
+if (configuracion?.terminosFactura) {
+    doc.moveDown();
+    doc.fontSize(8)
+        .font('Helvetica-Bold')
+        .fillColor('#111827')
+        .text('Términos y condiciones:', startX, doc.y, { width: eventoW });
+
+    doc.font('Helvetica')
+        .fillColor('#374151')
+        .text(configuracion.terminosFactura, {
+            width: eventoW,
+            align: 'left'
+        });
+}
+
         doc.end();
 
     } catch (error) {
@@ -802,6 +855,8 @@ async function reporteFacturaIndividual(req, res) {
 
 async function reporteReservaIndividual(req, res) {
     try {
+
+        const configuracion = await prisma.configuracion.findFirst();
         const { id } = req.params;
 
         const r = await prisma.reserva.findUnique({
@@ -826,7 +881,8 @@ async function reporteReservaIndividual(req, res) {
         const doc = crearDocumentoPDF(
             res,
             `reserva-${r.id}.pdf`,
-            'Reserva'
+            'Reserva',
+            configuracion
         );
 
         dibujarDetalle(doc, [

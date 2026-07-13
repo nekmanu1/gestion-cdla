@@ -1,7 +1,150 @@
 const prisma = require('../lib/prisma');
 
+/*
+ * Modalidades que no se cobran.
+ * Ajusta estos nombres para que coincidan exactamente
+ * con los valores guardados en tu base de datos.
+ */
+const MODALIDADES_NO_COBRADAS = [
+    'GRATUITO',
+    'ESCUELA_CDLA',
+    'CONVENIO',
+];
+
+
+function esAdministrador(req) {
+    return req.usuario?.rol === 'ADMIN';
+}
+
+function responderError(res, error, mensaje) {
+    console.error(error);
+
+    return res.status(500).json({
+        message: mensaje
+    });
+}
+
+function claveMes(fecha) {
+    if (!fecha) return null;
+
+    const valor = new Date(fecha);
+
+    if (Number.isNaN(valor.getTime())) {
+        return null;
+    }
+
+    return `${valor.getFullYear()}-${String(
+        valor.getMonth() + 1
+    ).padStart(2, '0')}`;
+}
+
+function calcularHoras(inicio, fin) {
+    if (!inicio || !fin) return 0;
+
+    const diferencia =
+        new Date(fin).getTime() -
+        new Date(inicio).getTime();
+
+    return Math.max(
+        0,
+        diferencia / 3600000
+    );
+}
+
+function calcularDias(inicio, fin) {
+    if (!inicio || !fin) return 0;
+
+    const diferencia =
+        new Date(fin).getTime() -
+        new Date(inicio).getTime();
+
+    return Math.max(
+        0,
+        Math.ceil(diferencia / 86400000)
+    );
+}
+
+/*
+ * Calcula cuánto habría costado el evento si no fuera gratuito.
+ * No utiliza costoEstimado porque ese campo normalmente es 0
+ * para convenios, acuerdos y eventos gratuitos.
+ */
+function calcularValorComercial(solicitud) {
+    const espacio = solicitud.espacio;
+
+    if (!espacio) return 0;
+
+    const montaje =
+        calcularHoras(
+            solicitud.fechaInicioMontaje,
+            solicitud.fechaFinMontaje
+        ) * Number(espacio.precioMontaje || 0);
+
+    const evento =
+        calcularHoras(
+            solicitud.fechaInicioEvento,
+            solicitud.fechaFinEvento
+        ) * Number(espacio.precioEvento || 0);
+
+    const desmontaje =
+        calcularHoras(
+            solicitud.fechaInicioDesmontaje,
+            solicitud.fechaFinDesmontaje
+        ) * Number(espacio.precioDesmontaje || 0);
+
+    const cierre =
+        calcularDias(
+            solicitud.fechaInicioCerrado,
+            solicitud.fechaFinCerrado
+        ) * Number(espacio.precioCerrado || 0);
+
+    return Number(
+        (
+            montaje +
+            evento +
+            desmontaje +
+            cierre
+        ).toFixed(2)
+    );
+}
+
+function convertirOrdenado(
+    objeto,
+    campoNombre,
+    campoValor
+) {
+    return Object.entries(objeto)
+        .map(([nombre, valor]) => ({
+            [campoNombre]: nombre,
+            [campoValor]: valor
+        }))
+        .sort(
+            (a, b) =>
+                b[campoValor] - a[campoValor]
+        );
+}
+
+/* =========================================================
+   RESUMEN GENERAL
+   Disponible para ADMIN y OPERADOR
+========================================================= */
+
 async function resumenDashboard(req, res) {
     try {
+        const ahora = new Date();
+
+        const inicioHoy = new Date(
+            ahora.getFullYear(),
+            ahora.getMonth(),
+            ahora.getDate()
+        );
+
+        const finHoy = new Date(
+            ahora.getFullYear(),
+            ahora.getMonth(),
+            ahora.getDate() + 1
+        );
+
         const [
             totalUsuarios,
             totalClientes,
@@ -9,113 +152,339 @@ async function resumenDashboard(req, res) {
             solicitudesPendientes,
             solicitudesAprobadas,
             solicitudesRechazadas,
-            reservasActivas
+            solicitudesCanceladas,
+            reservasActivas,
+            eventosHoy,
+            espaciosDisponibles
         ] = await Promise.all([
-            prisma.usuario.count(),
+            esAdministrador(req)
+                ? prisma.usuario.count()
+                : Promise.resolve(null),
+
             prisma.cliente.count({
-                where: { activo: true }
+                where: {
+                    activo: true
+                }
             }),
+
             prisma.espacio.count(),
+
             prisma.solicitud.count({
-                where: { estado: 'PENDIENTE' }
+                where: {
+                    estado: 'PENDIENTE'
+                }
             }),
+
             prisma.solicitud.count({
-                where: { estado: 'APROBADA' }
+                where: {
+                    estado: 'APROBADA'
+                }
             }),
+
             prisma.solicitud.count({
-                where: { estado: 'RECHAZADA' }
+                where: {
+                    estado: 'RECHAZADA'
+                }
             }),
+
+            prisma.solicitud.count({
+                where: {
+                    estado: 'CANCELADA'
+                }
+            }),
+
             prisma.reserva.count({
-                where: { estado: 'ACTIVA' }
+                where: {
+                    estado: 'ACTIVA'
+                }
+            }),
+
+            prisma.reserva.count({
+                where: {
+                    estado: 'ACTIVA',
+                    fechaInicio: {
+                        lt: finHoy
+                    },
+                    fechaFin: {
+                        gt: inicioHoy
+                    }
+                }
+            }),
+
+            prisma.espacio.count({
+                where: {
+                    estado: 'DISPONIBLE'
+                }
             })
         ]);
 
-        res.json({
-            totalUsuarios,
+        const respuesta = {
+            rol: req.usuario?.rol,
             totalClientes,
             totalEspacios,
+            espaciosDisponibles,
             solicitudesPendientes,
             solicitudesAprobadas,
             solicitudesRechazadas,
-            reservasActivas
-        });
+            solicitudesCanceladas,
+            reservasActivas,
+            eventosHoy
+        };
 
+        if (esAdministrador(req)) {
+            respuesta.totalUsuarios =
+                totalUsuarios;
+        }
+
+        return res.json(respuesta);
     } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: 'Error al obtener resumen del dashboard'
-        });
+        return responderError(
+            res,
+            error,
+            'Error al obtener el resumen del dashboard'
+        );
     }
 }
 
-async function estadisticasReservas(req, res) {
-    try {
-        const reservas = await prisma.reserva.findMany({
-            where: {
-                estado: 'ACTIVA'
-            },
-            include: {
-                espacio: true
-            }
-        });
+/* =========================================================
+   ESTADÍSTICAS OPERATIVAS
+   No incluye dinero ni nombres de clientes
+========================================================= */
 
-        const reservasPorEspacio = {};
+async function dashboardOperativo(req, res) {
+    try {
+        const reservas =
+            await prisma.reserva.findMany({
+                include: {
+                    espacio: {
+                        select: {
+                            id: true,
+                            nombre: true
+                        }
+                    },
+                    solicitud: {
+                        select: {
+                            estado: true,
+                            modalidadCosto: true,
+                            tipoEvento: true,
+                            personas: true
+                        }
+                    }
+                },
+                orderBy: {
+                    fechaInicio: 'asc'
+                }
+            });
+
+        const solicitudes =
+            await prisma.solicitud.findMany({
+                select: {
+                    estado: true,
+                    tipoEvento: true,
+                    modalidadCosto: true,
+                    creadoEn: true
+                }
+            });
+
+        const reservasPorMes = {};
+        const espaciosMasUtilizados = {};
+        const solicitudesPorEstado = {};
+        const tiposEvento = {};
+        const modalidades = {};
+
+        let totalAsistentes = 0;
 
         reservas.forEach((reserva) => {
-            const nombreEspacio = reserva.espacio.nombre;
+            const mes = claveMes(
+                reserva.fechaInicio
+            );
 
-            if (!reservasPorEspacio[nombreEspacio]) {
-                reservasPorEspacio[nombreEspacio] = 0;
+            if (mes) {
+                reservasPorMes[mes] =
+                    (reservasPorMes[mes] || 0) + 1;
             }
 
-            reservasPorEspacio[nombreEspacio]++;
+            const espacio =
+                reserva.espacio?.nombre ||
+                'Sin espacio';
+
+            espaciosMasUtilizados[espacio] =
+                (espaciosMasUtilizados[espacio] || 0) +
+                1;
+
+            totalAsistentes += Number(
+                reserva.solicitud?.personas || 0
+            );
         });
 
-        const resultado = Object.keys(reservasPorEspacio).map((espacio) => {
-            return {
-                espacio,
-                cantidad: reservasPorEspacio[espacio]
-            };
+        solicitudes.forEach((solicitud) => {
+            const estado =
+                solicitud.estado || 'SIN_ESTADO';
+
+            solicitudesPorEstado[estado] =
+                (solicitudesPorEstado[estado] || 0) +
+                1;
+
+            const tipo =
+                solicitud.tipoEvento ||
+                'Sin especificar';
+
+            tiposEvento[tipo] =
+                (tiposEvento[tipo] || 0) + 1;
+
+            const modalidad =
+                solicitud.modalidadCosto ||
+                'Sin especificar';
+
+            modalidades[modalidad] =
+                (modalidades[modalidad] || 0) +
+                1;
         });
 
-        res.json({
-            reservasPorEspacio: resultado
-        });
+        return res.json({
+            reservasPorMes: Object.keys(
+                reservasPorMes
+            )
+                .sort()
+                .map((mes) => ({
+                    mes,
+                    cantidad:
+                        reservasPorMes[mes]
+                })),
 
+            espaciosMasUtilizados:
+                convertirOrdenado(
+                    espaciosMasUtilizados,
+                    'espacio',
+                    'cantidad'
+                ),
+
+            solicitudesPorEstado:
+                convertirOrdenado(
+                    solicitudesPorEstado,
+                    'estado',
+                    'cantidad'
+                ),
+
+            tiposEvento:
+                convertirOrdenado(
+                    tiposEvento,
+                    'tipo',
+                    'cantidad'
+                ),
+
+            modalidades:
+                convertirOrdenado(
+                    modalidades,
+                    'modalidad',
+                    'cantidad'
+                ),
+
+            totalAsistentesEstimados:
+                totalAsistentes
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: 'Error al obtener estadísticas de reservas'
-        });
+        return responderError(
+            res,
+            error,
+            'Error al obtener estadísticas operativas'
+        );
     }
 }
+
+/* =========================================================
+   INFORMACIÓN FINANCIERA
+   ÚNICAMENTE ADMIN
+========================================================= */
 
 async function estadisticasFacturacion(req, res) {
     try {
-        const facturas = await prisma.factura.findMany({
-            include: {
-                reserva: {
+        if (!esAdministrador(req)) {
+            return res.status(403).json({
+                message:
+                    'No tienes permiso para consultar información financiera'
+            });
+        }
+
+        const [facturas, solicitudesGratuitas] =
+            await Promise.all([
+                prisma.factura.findMany({
+                    include: {
+                        reserva: {
+                            include: {
+                                espacio: true,
+                                solicitud: true
+                            }
+                        }
+                    },
+                    orderBy: {
+                        fechaEmision: 'asc'
+                    }
+                }),
+
+                prisma.solicitud.findMany({
+                    where: {
+                        estado: {
+                            in: [
+                                'APROBADA',
+                                'CANCELADA'
+                            ]
+                        },
+                        modalidadCosto: {
+                            in: MODALIDADES_NO_COBRADAS
+                        }
+                    },
                     include: {
                         espacio: true
+                    },
+                    orderBy: {
+                        fechaInicioEvento: 'asc'
                     }
-                }
-            }
-        });
+                })
+            ]);
 
         let totalFacturado = 0;
         let totalPagado = 0;
         let totalPendiente = 0;
+        let totalAnulado = 0;
+
         let facturasPagadas = 0;
         let facturasPendientes = 0;
         let facturasAnuladas = 0;
 
+        const facturacionPorMes = {};
         const facturacionPorEspacio = {};
+        const pendientePorEspacio = {};
 
         facturas.forEach((factura) => {
-            const monto = Number(factura.monto);
+            const monto = Number(
+                factura.monto || 0
+            );
+
+            const espacio =
+                factura.reserva?.espacio?.nombre ||
+                'Sin espacio';
+
+            const mes =
+                claveMes(factura.fechaEmision);
 
             if (factura.estado !== 'ANULADA') {
                 totalFacturado += monto;
+
+                facturacionPorEspacio[espacio] =
+                    (
+                        facturacionPorEspacio[
+                            espacio
+                        ] || 0
+                    ) + monto;
+
+                if (mes) {
+                    facturacionPorMes[mes] =
+                        (
+                            facturacionPorMes[mes] ||
+                            0
+                        ) + monto;
+                }
             }
 
             if (factura.estado === 'PAGADA') {
@@ -123,153 +492,217 @@ async function estadisticasFacturacion(req, res) {
                 facturasPagadas++;
             }
 
-            if (factura.estado === 'PENDIENTE') {
+            if (
+                factura.estado === 'PENDIENTE'
+            ) {
                 totalPendiente += monto;
                 facturasPendientes++;
+
+                pendientePorEspacio[espacio] =
+                    (
+                        pendientePorEspacio[
+                            espacio
+                        ] || 0
+                    ) + monto;
             }
 
             if (factura.estado === 'ANULADA') {
+                totalAnulado += monto;
                 facturasAnuladas++;
             }
-
-            const espacio = factura.reserva?.espacio?.nombre || 'Sin espacio';
-
-            if (!facturacionPorEspacio[espacio]) {
-                facturacionPorEspacio[espacio] = 0;
-            }
-
-            if (factura.estado !== 'ANULADA') {
-                facturacionPorEspacio[espacio] += monto;
-            }
         });
 
-        const porEspacio = Object.keys(facturacionPorEspacio).map((espacio) => ({
-            espacio,
-            total: facturacionPorEspacio[espacio]
-        }));
+        let valorNoCobrado = 0;
 
-        res.json({
-            totalFacturado,
-            totalPagado,
-            totalPendiente,
-            facturasPagadas,
-            facturasPendientes,
-            facturasAnuladas,
-            facturacionPorEspacio: porEspacio
-        });
+        const noCobradoPorModalidad = {};
+        const noCobradoPorEspacio = {};
+        const noCobradoPorMes = {};
 
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: 'Error al obtener estadísticas de facturación'
-        });
-    }
-}
+        solicitudesGratuitas.forEach(
+            (solicitud) => {
+                const valor =
+                    calcularValorComercial(
+                        solicitud
+                    );
 
-async function dashboardAvanzado(req, res) {
-    try {
-        const reservas = await prisma.reserva.findMany({
-            include: {
-                espacio: true,
-                solicitud: {
-                    include: {
-                        cliente: true
-                    }
+                valorNoCobrado += valor;
+
+                const modalidad =
+                    solicitud.modalidadCosto ||
+                    'Sin especificar';
+
+                const espacio =
+                    solicitud.espacio?.nombre ||
+                    'Sin espacio';
+
+                const mes = claveMes(
+                    solicitud.fechaInicioEvento
+                );
+
+                if (
+                    !noCobradoPorModalidad[
+                        modalidad
+                    ]
+                ) {
+                    noCobradoPorModalidad[
+                        modalidad
+                    ] = {
+                        cantidad: 0,
+                        total: 0
+                    };
+                }
+
+                noCobradoPorModalidad[
+                    modalidad
+                ].cantidad++;
+
+                noCobradoPorModalidad[
+                    modalidad
+                ].total += valor;
+
+                noCobradoPorEspacio[espacio] =
+                    (
+                        noCobradoPorEspacio[
+                            espacio
+                        ] || 0
+                    ) + valor;
+
+                if (mes) {
+                    noCobradoPorMes[mes] =
+                        (
+                            noCobradoPorMes[mes] ||
+                            0
+                        ) + valor;
                 }
             }
-        });
+        );
 
-        const facturas = await prisma.factura.findMany({
-            where: {
-                estado: {
-                    not: 'ANULADA'
-                }
-            }
-        });
+        const porcentajeCobrado =
+            totalFacturado > 0
+                ? Number(
+                    (
+                        (totalPagado /
+                            totalFacturado) *
+                        100
+                    ).toFixed(2)
+                )
+                : 0;
 
-        const reservasPorMes = {};
-        const facturacionPorMes = {};
-        const espaciosMasUtilizados = {};
-        const clientesFrecuentes = {};
-
-        reservas.forEach((reserva) => {
-            const fecha = new Date(reserva.fechaInicio);
-            const mes = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-
-            if (!reservasPorMes[mes]) {
-                reservasPorMes[mes] = 0;
-            }
-
-            reservasPorMes[mes]++;
-
-            const espacio = reserva.espacio?.nombre || 'Sin espacio';
-
-            if (!espaciosMasUtilizados[espacio]) {
-                espaciosMasUtilizados[espacio] = 0;
-            }
-
-            espaciosMasUtilizados[espacio]++;
-
-            const cliente = reserva.solicitud?.cliente?.nombre || 'Sin cliente';
-
-            if (!clientesFrecuentes[cliente]) {
-                clientesFrecuentes[cliente] = 0;
-            }
-
-            clientesFrecuentes[cliente]++;
-        });
-
-        facturas.forEach((factura) => {
-            const fecha = new Date(factura.fechaEmision);
-            const mes = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
-
-            if (!facturacionPorMes[mes]) {
-                facturacionPorMes[mes] = 0;
-            }
-
-            facturacionPorMes[mes] += Number(factura.monto);
-        });
-
-        const convertirOrdenado = (objeto, campoNombre, campoValor) => {
-            return Object.keys(objeto)
-                .map((key) => ({
-                    [campoNombre]: key,
-                    [campoValor]: objeto[key]
-                }))
-                .sort((a, b) => b[campoValor] - a[campoValor]);
-        };
-
-        res.json({
-            reservasPorMes: Object.keys(reservasPorMes).map((mes) => ({
-                mes,
-                cantidad: reservasPorMes[mes]
-            })),
-            facturacionPorMes: Object.keys(facturacionPorMes).map((mes) => ({
-                mes,
-                total: facturacionPorMes[mes]
-            })),
-            espaciosMasUtilizados: convertirOrdenado(
-                espaciosMasUtilizados,
-                'espacio',
-                'cantidad'
-            ),
-            clientesFrecuentes: convertirOrdenado(
-                clientesFrecuentes,
-                'cliente',
-                'cantidad'
+        const modalidadesNoCobradas =
+            Object.entries(
+                noCobradoPorModalidad
             )
-        });
+                .map(
+                    ([
+                        modalidad,
+                        informacion
+                    ]) => ({
+                        modalidad,
+                        cantidad:
+                            informacion.cantidad,
+                        total: Number(
+                            informacion.total.toFixed(
+                                2
+                            )
+                        )
+                    })
+                )
+                .sort(
+                    (a, b) =>
+                        b.total - a.total
+                );
 
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            message: 'Error al obtener dashboard avanzado'
+        return res.json({
+            resumen: {
+                totalFacturado: Number(
+                    totalFacturado.toFixed(2)
+                ),
+                totalPagado: Number(
+                    totalPagado.toFixed(2)
+                ),
+                totalPendiente: Number(
+                    totalPendiente.toFixed(2)
+                ),
+                totalAnulado: Number(
+                    totalAnulado.toFixed(2)
+                ),
+                valorNoCobrado: Number(
+                    valorNoCobrado.toFixed(2)
+                ),
+                valorGestionado: Number(
+                    (
+                        totalFacturado +
+                        valorNoCobrado
+                    ).toFixed(2)
+                ),
+                porcentajeCobrado,
+                facturasPagadas,
+                facturasPendientes,
+                facturasAnuladas,
+                eventosNoCobrados:
+                    solicitudesGratuitas.length
+            },
+
+            facturacionPorMes: Object.keys(
+                facturacionPorMes
+            )
+                .sort()
+                .map((mes) => ({
+                    mes,
+                    total: Number(
+                        facturacionPorMes[
+                            mes
+                        ].toFixed(2)
+                    )
+                })),
+
+            facturacionPorEspacio:
+                convertirOrdenado(
+                    facturacionPorEspacio,
+                    'espacio',
+                    'total'
+                ),
+
+            pendientePorEspacio:
+                convertirOrdenado(
+                    pendientePorEspacio,
+                    'espacio',
+                    'total'
+                ),
+
+            modalidadesNoCobradas,
+
+            noCobradoPorEspacio:
+                convertirOrdenado(
+                    noCobradoPorEspacio,
+                    'espacio',
+                    'total'
+                ),
+
+            noCobradoPorMes: Object.keys(
+                noCobradoPorMes
+            )
+                .sort()
+                .map((mes) => ({
+                    mes,
+                    total: Number(
+                        noCobradoPorMes[
+                            mes
+                        ].toFixed(2)
+                    )
+                }))
         });
+    } catch (error) {
+        return responderError(
+            res,
+            error,
+            'Error al obtener estadísticas financieras'
+        );
     }
 }
+
 module.exports = {
     resumenDashboard,
-    estadisticasReservas,
-    estadisticasFacturacion,
-    dashboardAvanzado
+    dashboardOperativo,
+    estadisticasFacturacion
 };

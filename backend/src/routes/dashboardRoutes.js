@@ -1,44 +1,46 @@
 const express = require('express');
-const router = express.Router();
 
 const {
     resumenDashboard,
-    estadisticasReservas,
-    estadisticasFacturacion,
-    dashboardAvanzado
+    dashboardOperativo,
+    estadisticasFacturacion
 } = require('../controllers/dashboardController');
 
 const {
     verificarToken,
-    permitirRoles
+    soloAdmin
 } = require('../middlewares/authMiddleware');
 
-router.get(
-    '/avanzado',
-    verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR', 'CONSULTOR'),
-    dashboardAvanzado
-);
+const router = express.Router();
 
-router.get(
-    '/facturacion',
-    verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR', 'CONSULTOR'),
-    estadisticasFacturacion
-);
+/*
+ * Todas las rutas del dashboard requieren
+ * que el usuario haya iniciado sesión.
+ */
+router.use(verificarToken);
 
+/*
+ * ADMIN y OPERADOR pueden consultar
+ * las estadísticas generales.
+ */
 router.get(
     '/',
-    verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR', 'CONSULTOR'),
     resumenDashboard
 );
 
 router.get(
-    '/reservas',
-    verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR', 'CONSULTOR'),
-    estadisticasReservas
+    '/operativo',
+    dashboardOperativo
+);
+
+/*
+ * Solo el administrador puede consultar
+ * información financiera.
+ */
+router.get(
+    '/facturacion',
+    soloAdmin,
+    estadisticasFacturacion
 );
 
 module.exports = router;

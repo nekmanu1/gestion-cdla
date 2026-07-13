@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Configuracion" ADD COLUMN     "creadoEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

@@ -28,13 +28,14 @@ enum Rol {
 
 model Cliente {
   id            Int      @id @default(autoincrement())
-  nombre        String
-  cedulaRuc     String?  @unique
+  nombre        String @unique
+  cedulaRuc     String?  
   telefono      String?
   correo        String?
   direccion     String?
   tipoCliente   String?  // Persona Natural, Empresa, Institución
   observaciones String?
+  contactoResponsable  String?
   activo        Boolean  @default(true)
   creadoEn      DateTime @default(now())
 
@@ -204,14 +205,31 @@ model Auditoria {
 }
 
 model Configuracion {
-  id          Int      @id @default(autoincrement())
-  nombre     String
-  correo     String?
-  telefono   String?
-  direccion  String?
-  moneda     String   @default("USD")
-  logoUrl    String?
-  actualizadoEn DateTime @updatedAt
+  id                  Int      @id @default(autoincrement())
+  nombre              String
+  correo              String?
+  telefono            String?
+  direccion           String?
+  moneda              String   @default("USD")
+  logoUrl             String?
+
+  ruc                 String?
+  sitioWeb            String?
+  nombreComercial     String?
+  representanteLegal  String?
+
+  prefijoSolicitud    String?  @default("SOL")
+  prefijoFactura      String?  @default("FAC")
+  prefijoReserva      String?  @default("RES")
+
+  notaFactura         String?
+  terminosFactura     String?
+  mensajeReportes     String?
+
+  colorPrincipal      String?  @default("#111827")
+
+  creadoEn            DateTime @default(now())
+  actualizadoEn       DateTime @updatedAt
 }
 
 enum CategoriaEspacio {

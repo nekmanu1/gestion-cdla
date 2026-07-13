@@ -6,11 +6,14 @@ const {
     obtenerSolicitud,
     crearSolicitud,
     actualizarSolicitud,
+    actualizarEstadoSolicitud,
     eliminarSolicitud,
     aprobarSolicitud,
     rechazarSolicitud,
     calcularCosto,
-    calendarioSolicitudes
+    calendarioSolicitudes,
+    descargarCalendarioPDF,
+    verificarDisponibilidad // <-- NUEVO
 } = require('../controllers/solicitudController');
 
 const {
@@ -18,11 +21,16 @@ const {
     permitirRoles
 } = require('../middlewares/authMiddleware');
 
-router.post(
-    '/calcular-costo',
+
+/* ===========================
+   CALENDARIO
+=========================== */
+
+router.get(
+    '/calendario/descargar-pdf',
     verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR'),
-    calcularCosto
+    permitirRoles('ADMIN', 'OPERADOR', 'CONSULTOR'),
+    descargarCalendarioPDF
 );
 
 router.get(
@@ -31,6 +39,58 @@ router.get(
     permitirRoles('ADMIN', 'OPERADOR', 'CONSULTOR'),
     calendarioSolicitudes
 );
+
+
+/* ===========================
+   VALIDACIONES
+=========================== */
+
+// Verificar conflictos antes de guardar
+router.post(
+    '/verificar-disponibilidad',
+    verificarToken,
+    permitirRoles('ADMIN', 'OPERADOR'),
+    verificarDisponibilidad
+);
+
+// Calcular costo automático
+router.post(
+    '/calcular-costo',
+    verificarToken,
+    permitirRoles('ADMIN', 'OPERADOR'),
+    calcularCosto
+);
+
+
+/* ===========================
+   ESTADO
+=========================== */
+
+router.put(
+    '/:id/estado',
+    verificarToken,
+    permitirRoles('ADMIN', 'OPERADOR'),
+    actualizarEstadoSolicitud
+);
+
+router.put(
+    '/:id/aprobar',
+    verificarToken,
+    permitirRoles('ADMIN', 'OPERADOR'),
+    aprobarSolicitud
+);
+
+router.put(
+    '/:id/rechazar',
+    verificarToken,
+    permitirRoles('ADMIN', 'OPERADOR'),
+    rechazarSolicitud
+);
+
+
+/* ===========================
+   CRUD
+=========================== */
 
 router.get(
     '/',
@@ -65,20 +125,6 @@ router.delete(
     verificarToken,
     permitirRoles('ADMIN', 'OPERADOR'),
     eliminarSolicitud
-);
-
-router.put(
-    '/:id/aprobar',
-    verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR'),
-    aprobarSolicitud
-);
-
-router.put(
-    '/:id/rechazar',
-    verificarToken,
-    permitirRoles('ADMIN', 'OPERADOR'),
-    rechazarSolicitud
 );
 
 module.exports = router;
