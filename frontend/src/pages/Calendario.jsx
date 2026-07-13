@@ -24,6 +24,14 @@ export default function Calendario() {
 
 const [mesPDF, setMesPDF] = useState(String(fechaActual.getMonth() + 1));
 const [anioPDF, setAnioPDF] = useState(String(fechaActual.getFullYear()));
+const [tipoPDF, setTipoPDF] = useState('mes');
+
+const [fechaPDF, setFechaPDF] = useState(
+    fechaActual.toISOString().split('T')[0]
+);
+
+const [descargandoPDF, setDescargandoPDF] =
+    useState(false);
 
     const usuario = JSON.parse(localStorage.getItem('usuario'));
 
@@ -73,27 +81,93 @@ const [anioPDF, setAnioPDF] = useState(String(fechaActual.getFullYear()));
 
     async function descargarCalendarioPDF() {
     try {
+        setDescargandoPDF(true);
+
+        const params = new URLSearchParams();
+
+        if (tipoPDF === 'dia') {
+            if (!fechaPDF) {
+                toast.error(
+                    'Selecciona el día que deseas descargar'
+                );
+                return;
+            }
+
+            params.append('fecha', fechaPDF);
+        } else {
+            if (!mesPDF || !anioPDF) {
+                toast.error(
+                    'Selecciona un mes y un año'
+                );
+                return;
+            }
+
+            params.append('mes', mesPDF);
+            params.append('anio', anioPDF);
+        }
+
         const response = await api.get(
-            `/solicitudes/calendario/descargar-pdf?mes=${mesPDF}&anio=${anioPDF}`,
+            `/solicitudes/calendario/descargar-pdf?${params.toString()}`,
             {
                 responseType: 'blob'
             }
         );
 
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement('a');
+        const archivo = new Blob(
+            [response.data],
+            {
+                type: 'application/pdf'
+            }
+        );
+
+        const url =
+            window.URL.createObjectURL(archivo);
+
+        const link =
+            document.createElement('a');
 
         link.href = url;
-        link.download = `calendario-${mesPDF}-${anioPDF}.pdf`;
+
+        link.download =
+            tipoPDF === 'dia'
+                ? `calendario-${fechaPDF}.pdf`
+                : `calendario-${mesPDF}-${anioPDF}.pdf`;
 
         document.body.appendChild(link);
+
         link.click();
         link.remove();
 
         window.URL.revokeObjectURL(url);
+
+        toast.success(
+            'Calendario descargado correctamente'
+        );
     } catch (error) {
         console.error(error);
-        toast.error('Error al descargar calendario PDF');
+
+        let mensaje =
+            'Error al descargar calendario PDF';
+
+        if (
+            error.response?.data instanceof Blob
+        ) {
+            try {
+                const texto =
+                    await error.response.data.text();
+
+                const datos = JSON.parse(texto);
+
+                mensaje =
+                    datos.message || mensaje;
+            } catch {
+                // Conserva el mensaje general.
+            }
+        }
+
+        toast.error(mensaje);
+    } finally {
+        setDescargandoPDF(false);
     }
 }
 
@@ -323,47 +397,161 @@ const [anioPDF, setAnioPDF] = useState(String(fechaActual.getFullYear()));
                 subtitle="Consulta disponibilidad, solicitudes pendientes y reservas aprobadas"
             />
 
-            <Card className="p-4 mb-6">
-    <div className="flex flex-wrap gap-3 items-end">
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-                Mes
-            </label>
+          <Card className="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+    <div className="border-b border-gray-200 bg-gray-50 px-6 py-5">
+        <h2 className="text-lg font-bold text-gray-900">
+            Descargar calendario
+        </h2>
 
-            <Select
-                value={mesPDF}
-                onChange={(e) => setMesPDF(e.target.value)}
-            >
-                <option value="1">Enero</option>
-                <option value="2">Febrero</option>
-                <option value="3">Marzo</option>
-                <option value="4">Abril</option>
-                <option value="5">Mayo</option>
-                <option value="6">Junio</option>
-                <option value="7">Julio</option>
-                <option value="8">Agosto</option>
-                <option value="9">Septiembre</option>
-                <option value="10">Octubre</option>
-                <option value="11">Noviembre</option>
-                <option value="12">Diciembre</option>
-            </Select>
+        <p className="mt-1 text-sm text-gray-500">
+            Genera el calendario de eventos aprobados por mes o por un día específico.
+        </p>
+    </div>
+
+    <div className="p-6">
+        <div
+            className={`
+                grid grid-cols-1 gap-4
+                md:grid-cols-2
+                ${
+                    tipoPDF === 'mes'
+                        ? 'xl:grid-cols-[220px_1fr_180px_auto]'
+                        : 'xl:grid-cols-[220px_minmax(260px,1fr)_auto]'
+                }
+                xl:items-end
+            `}
+        >
+            {/* TIPO DE DESCARGA */}
+            <div className="min-w-0">
+                <label className="mb-2 block text-sm font-semibold text-gray-700">
+                    Descargar por
+                </label>
+
+                <Select
+                    value={tipoPDF}
+                    onChange={(e) => setTipoPDF(e.target.value)}
+                    className="
+                        h-12
+                        w-full
+                        rounded-xl
+                        border-gray-300
+                        bg-white
+                        px-4
+                        shadow-sm
+                    "
+                >
+                    <option value="mes">Mes completo</option>
+                    <option value="dia">Día específico</option>
+                </Select>
+            </div>
+
+            {tipoPDF === 'mes' ? (
+                <>
+                    {/* MES */}
+                    <div className="min-w-0">
+                        <label className="mb-2 block text-sm font-semibold text-gray-700">
+                            Mes
+                        </label>
+
+                        <Select
+                            value={mesPDF}
+                            onChange={(e) => setMesPDF(e.target.value)}
+                            className="
+                                h-12
+                                w-full
+                                rounded-xl
+                                border-gray-300
+                                bg-white
+                                px-4
+                                shadow-sm
+                            "
+                        >
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </Select>
+                    </div>
+
+                    {/* AÑO */}
+                    <div className="min-w-0">
+                        <label className="mb-2 block text-sm font-semibold text-gray-700">
+                            Año
+                        </label>
+
+                        <Input
+                            type="number"
+                            min="2020"
+                            max="2100"
+                            value={anioPDF}
+                            onChange={(e) => setAnioPDF(e.target.value)}
+                            className="
+                                h-12
+                                w-full
+                                rounded-xl
+                                border-gray-300
+                                bg-white
+                                px-4
+                                shadow-sm
+                            "
+                        />
+                    </div>
+                </>
+            ) : (
+                <div className="min-w-0">
+                    <label className="mb-2 block text-sm font-semibold text-gray-700">
+                        Fecha
+                    </label>
+
+                    <Input
+                        type="date"
+                        value={fechaPDF}
+                        onChange={(e) => setFechaPDF(e.target.value)}
+                        className="
+                            h-12
+                            w-full
+                            rounded-xl
+                            border-gray-300
+                            bg-white
+                            px-4
+                            shadow-sm
+                        "
+                    />
+                </div>
+            )}
+
+            {/* BOTÓN */}
+            <div className="flex items-end">
+                <Button
+                    type="button"
+                    onClick={descargarCalendarioPDF}
+                    disabled={descargandoPDF}
+                    className="
+                        h-12
+                        w-full
+                        justify-center
+                        rounded-xl
+                        px-6
+                        font-semibold
+                        xl:w-auto
+                    "
+                >
+                    {descargandoPDF
+                        ? 'Descargando...'
+                        : tipoPDF === 'dia'
+                            ? 'Descargar día'
+                            : 'Descargar mes'}
+                </Button>
+            </div>
         </div>
-
-        <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-                Año
-            </label>
-
-            <Input
-                type="number"
-                value={anioPDF}
-                onChange={(e) => setAnioPDF(e.target.value)}
-            />
-        </div>
-
-        <Button onClick={descargarCalendarioPDF}>
-            Descargar PDF
-        </Button>
     </div>
 </Card>
 

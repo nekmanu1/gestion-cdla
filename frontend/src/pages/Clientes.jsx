@@ -9,7 +9,7 @@ import Input from '../components/ui/Input';
 import Textarea from '../components/ui/Textarea';
 import {
     PencilSquareIcon,
-    UserMinusIcon
+    TrashIcon
 } from '@heroicons/react/24/outline';
 
 import Table, { Th, Td } from '../components/ui/Table';
@@ -23,15 +23,16 @@ export default function Clientes() {
     const [clienteEditando, setClienteEditando] = useState(null);
 
     const [formEditar, setFormEditar] = useState({
-        nombre: '',
-        cedulaRuc: '',
-        telefono: '',
-        correo: '',
-        direccion: '',
-        tipoCliente: '',
-        observaciones: '',
-        activo: true
-    });
+    nombre: '',
+    cedulaRuc: '',
+    telefono: '',
+    correo: '',
+    direccion: '',
+    tipoCliente: '',
+    contactoResponsable: '',
+    observaciones: '',
+    activo: true
+});
 
     useEffect(() => {
         cargarClientes();
@@ -64,15 +65,17 @@ export default function Clientes() {
         setClienteEditando(cliente);
 
         setFormEditar({
-            nombre: cliente.nombre || '',
-            cedulaRuc: cliente.cedulaRuc || '',
-            telefono: cliente.telefono || '',
-            correo: cliente.correo || '',
-            direccion: cliente.direccion || '',
-            tipoCliente: cliente.tipoCliente || '',
-            observaciones: cliente.observaciones || '',
-            activo: cliente.activo ?? true
-        });
+    nombre: cliente.nombre || '',
+    cedulaRuc: cliente.cedulaRuc || '',
+    telefono: cliente.telefono || '',
+    correo: cliente.correo || '',
+    direccion: cliente.direccion || '',
+    tipoCliente: cliente.tipoCliente || '',
+    contactoResponsable:
+        cliente.contactoResponsable || '',
+    observaciones: cliente.observaciones || '',
+    activo: cliente.activo ?? true
+});
     }
 
     function cambiarEditar(e) {
@@ -99,18 +102,34 @@ export default function Clientes() {
         }
     }
 
-    async function desactivarCliente(id) {
-        if (!confirm('¿Deseas desactivar este cliente?')) return;
+    async function eliminarCliente(cliente) {
+    const confirmar = window.confirm(
+        `¿Deseas eliminar definitivamente al cliente "${cliente.nombre}"?\n\n` +
+        'Esta acción solo será posible si el cliente no tiene solicitudes relacionadas.'
+    );
 
-        try {
-            await api.delete(`/clientes/${id}`);
-            toast.success('Cliente desactivado correctamente');
-            cargarClientes();
-        } catch (error) {
-            console.error(error);
-            toast.error(error.response?.data?.message || 'Error al desactivar cliente');
-        }
+    if (!confirmar) return;
+
+    try {
+        const response = await api.delete(
+            `/clientes/${cliente.id}`
+        );
+
+        toast.success(
+            response.data?.message ||
+            'Cliente eliminado correctamente'
+        );
+
+        cargarClientes();
+    } catch (error) {
+        console.error(error);
+
+        toast.error(
+            error.response?.data?.message ||
+            'Error al eliminar cliente'
+        );
     }
+}
 
     return (
         <div>
@@ -151,6 +170,7 @@ export default function Clientes() {
                         <Th>Cédula/RUC</Th>
                         <Th>Correo</Th>
                         <Th>Teléfono</Th>
+                        <Th>Contacto responsable</Th>
                         <Th>Activo</Th>
                         <Th>Acciones</Th>
                     </tr>
@@ -171,6 +191,7 @@ export default function Clientes() {
                             <Td>{cliente.cedulaRuc || '-'}</Td>
                             <Td>{cliente.correo || '-'}</Td>
                             <Td>{cliente.telefono || '-'}</Td>
+                            <Td>{cliente.contactoResponsable || '-'}</Td>
 
                             <Td>
                                 <EstadoCliente activo={cliente.activo} />
@@ -185,16 +206,22 @@ export default function Clientes() {
 >
     <PencilSquareIcon className="w-5 h-5" />
 </button>
-
-                                    {cliente.activo && (
-                                           <button
-        title="Desactivar cliente"
-        onClick={() => desactivarCliente(cliente.id)}
-        className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition"
-    >
-        <UserMinusIcon className="w-5 h-5" />
-    </button>
-                                    )}
+<button
+    type="button"
+    title="Eliminar cliente"
+    onClick={() => eliminarCliente(cliente)}
+    className="
+        inline-flex items-center justify-center
+        w-9 h-9 rounded-lg
+        border border-red-200
+        text-red-600
+        hover:bg-red-50
+        hover:border-red-300
+        transition
+    "
+>
+    <TrashIcon className="w-5 h-5" />
+</button>
                                 </div>
                             </Td>
                         </tr>
@@ -251,6 +278,13 @@ export default function Clientes() {
                                     value={formEditar.cedulaRuc}
                                     onChange={cambiarEditar}
                                 />
+
+                                <Input
+    name="contactoResponsable"
+    placeholder="Contacto responsable"
+    value={formEditar.contactoResponsable}
+    onChange={cambiarEditar}
+/>
 
                                 <Input
                                     name="telefono"

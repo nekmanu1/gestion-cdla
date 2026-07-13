@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import {
+    Link,
+    NavLink,
+    Outlet,
+    useNavigate
+} from 'react-router-dom';
 
 import {
     FiHome,
@@ -248,25 +253,71 @@ export default function Layout() {
 
 function TopLink({ to, label, icon }) {
     return (
-        <Link
+        <NavLink
             to={to}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-white hover:text-gray-900 transition whitespace-nowrap"
+            className={({ isActive }) =>
+                `
+                inline-flex items-center gap-2
+                px-2.5 py-2.5
+                rounded-xl
+                text-sm
+                font-medium
+                transition-all
+                duration-200
+                whitespace-nowrap
+
+                ${
+                    isActive
+                        ? 'bg-neutral-900 text-white shadow-md'
+                        : 'text-gray-700 hover:bg-white hover:text-black'
+                }
+                `
+            }
         >
-            <span className="text-base">{icon}</span>
+            <span
+                className={`text-lg transition-colors`}
+            >
+                {icon}
+            </span>
+
             <span>{label}</span>
-        </Link>
+        </NavLink>
     );
 }
 
-function MobileLink({ to, label, icon, onClick }) {
+function MobileLink({
+    to,
+    label,
+    icon,
+    onClick
+}) {
     return (
-        <Link
+        <NavLink
             to={to}
             onClick={onClick}
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100 transition"
+            className={({ isActive }) =>
+                `
+                flex items-center gap-3
+                px-4 py-3
+                rounded-xl
+                transition-all
+                duration-200
+
+                ${
+                    isActive
+                        ? 'bg-neutral-900 text-white shadow'
+                        : 'text-gray-700 hover:bg-gray-100'
+                }
+                `
+            }
         >
-            <span className="text-lg">{icon}</span>
-            <span>{label}</span>
-        </Link>
+            <span className="text-lg">
+                {icon}
+            </span>
+
+            <span className="font-medium">
+                {label}
+            </span>
+        </NavLink>
     );
 }
